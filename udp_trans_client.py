@@ -1,57 +1,73 @@
 """
 Encode numpy arrays and send them via udp periodically
 """
-import asyncio
 import logging.config
+import socket
 import sys
 
 import numpy
 import numpy.random
+from PyQt5.QtCore import pyqtSignal, pyqtSlot, QObject, QThread, QTimer
+from PyQt5.QtWidgets import QMainWindow, QApplication, QVBoxLayout, QPushButton, QWidget
 
 from udp_trans import UDP_PORT
 
 logger = logging.getLogger(__name__)
 
 
-class TransClient(asyncio.DatagramProtocol):
+class DatagramThread(QObject):
 
-    @classmethod
-    async def connect(cls, port: int = UDP_PORT):
-        client = TransClient()
-        loop = asyncio.get_running_loop()
-        await loop.create_datagram_endpoint(lambda: client, remote_addr=('127.0.0.1', port))
-        return client
+    sig_finished = pyqtSignal(str)
 
-    def __init__(self, port: int = UDP_PORT):
-        super().__init__()
-        self.port = port
-        self.transport = None
+    def __init__(self):
+        super().__init__(None)
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-    def close(self):
-        self.transport.close()
-
-    def connection_made(self, transport):
-        self.transport = transport
-
-    async def co_send_data(self, data):
-        self.transport.sendto(data)
-
-    def datagram_received(self, datagram, addr):
-        pass
-
-
-async def co_period_send_data():
-    udp_client = await TransClient.connect(UDP_PORT)
-    while True:
-        numbers = 600.0 * (numpy.random.random_sample((4,))-0.5)
+    @pyqtSlot()
+    def send_data(self):
+        numbers = 600.0 * (numpy.random.random_sample((4,)) - 0.5)
         data = numbers.tobytes('C')
-        await udp_client.co_send_data(data)
-        await asyncio.sleep(0.01) # sleep for 10 ms
+        self.socket.sendto(data, ('127.0.0.1', UDP_PORT))
 
 
-def main():
-    asyncio.run(co_period_send_data())
+class MainWindow(QMainWindow):
+
+    def __init__(self, app: QApplication):
+        super().__init__()
+        self.app = app
+        self.setWindowTitle("Trans Client")
+        self.central_widget = QWidget()
+        self.layout = QVBoxLayout()
+        self.btnStart = QPushButton("Start Transmission")
+        self.btnStop = QPushButton("Stop Transmission")
+        self.btnExit = QPushButton("Exit")
+        for _btn in (self.btnStart, self.btnStop, self.btnExit):
+            self.layout.addWidget(_btn)
+        self.central_widget.setLayout(self.layout)
+        self.btnStart.clicked.connect(self.hstart)
+        self.btnStop.clicked.connect(self.hstop)
+        self.btnExit.clicked.connect(self.app.quit)
+        self.setCentralWidget(self.central_widget)
+        self.thr = QThread()
+        self.dgram = DatagramThread()
+        self.dgram.moveToThread(self.thr)
+        self.thr.start()
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.dgram.send_data)
+
+    def hstart(self):
+        self.timer.start(10)
+
+    def hstop(self):
+        self.timer.stop()
+
+
+def qt_main():
+    app = QApplication(sys.argv)
+    window = MainWindow(app)
+    window.show()
+    app.exec()
 
 
 if __name__ == "__main__":
-    main()
+    qt_main()
