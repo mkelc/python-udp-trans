@@ -34,7 +34,7 @@ class DatagramThread(QObject):
 
     @pyqtSlot()
     def send_data(self):
-        numbers = 600.0 * (numpy.random.random_sample((4,)) - 0.5)
+        numbers = 600.0 * (numpy.random.random_sample((300,)) - 0.5)
         data = numbers.tobytes('C')
         self.socket.sendto(data, ('127.0.0.1', UDP_PORT))
 

@@ -5,11 +5,11 @@ import asyncio
 import logging.config
 import sys
 import threading
-import time
 
 import numpy
 from PyQt5.QtCore import QThread, pyqtSignal, pyqtSlot
 from PyQt5.QtWidgets import QWidget, QPushButton, QApplication, QMainWindow, QVBoxLayout
+from pyqtgraph import PlotWidget
 
 UDP_PORT = 61111
 
@@ -65,9 +65,11 @@ class MainWindow(QMainWindow):
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
         self.layout = QVBoxLayout()
+        self.graphWidget = PlotWidget()
         self.btnExit = QPushButton("Exit")
         self.btnExit.clicked.connect(self.app.quit)
         self.layout.addWidget(self.btnExit)
+        self.layout.addWidget(self.graphWidget)
         self.central_widget.setLayout(self.layout)
         self.app.aboutToQuit.connect(self.close)
         self.server = Server(UDP_PORT)
@@ -75,7 +77,9 @@ class MainWindow(QMainWindow):
 
     @pyqtSlot(object)
     def data_recieved(self, numbers):
-        print(f"Numbers received: {numbers}")
+        # print(f"Numbers received: {numbers}")
+        self.graphWidget.getPlotItem().clear()
+        self.graphWidget.getPlotItem().plot(numpy.arange(len(numbers)), numbers)
 
     def close(self):
         self.server.stop()
