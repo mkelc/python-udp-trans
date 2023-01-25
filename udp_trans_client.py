@@ -17,11 +17,20 @@ logger = logging.getLogger(__name__)
 
 class DatagramThread(QObject):
 
-    sig_finished = pyqtSignal(str)
+    sig_cleanup = pyqtSignal()
+    sig_finished = pyqtSignal()
 
     def __init__(self):
         super().__init__(None)
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.thread = QThread()
+        self.moveToThread(self.thread)
+        self.sig_finished.connect(self.thread.quit)
+        self.sig_cleanup.connect(self.cleanup)
+        self.thread.start()
+
+    def close(self):
+        self.sig_cleanup.emit()
 
     @pyqtSlot()
     def send_data(self):
@@ -29,8 +38,17 @@ class DatagramThread(QObject):
         data = numbers.tobytes('C')
         self.socket.sendto(data, ('127.0.0.1', UDP_PORT))
 
+    @pyqtSlot()
+    def cleanup(self):
+        print("Cleanin up dgram sender")
+        self.socket.close()
+        self.socket = None
+        self.sig_finished.emit()
+
 
 class MainWindow(QMainWindow):
+
+    sig_cleanup = pyqtSignal()
 
     def __init__(self, app: QApplication):
         super().__init__()
@@ -48,18 +66,21 @@ class MainWindow(QMainWindow):
         self.btnStop.clicked.connect(self.hstop)
         self.btnExit.clicked.connect(self.app.quit)
         self.setCentralWidget(self.central_widget)
-        self.thr = QThread()
         self.dgram = DatagramThread()
-        self.dgram.moveToThread(self.thr)
-        self.thr.start()
         self.timer = QTimer()
         self.timer.timeout.connect(self.dgram.send_data)
+        self.app.aboutToQuit.connect(self.cleanup)
 
     def hstart(self):
         self.timer.start(10)
 
     def hstop(self):
         self.timer.stop()
+
+    @pyqtSlot()
+    def cleanup(self):
+        print("Cleaning up main window")
+        self.dgram.close()
 
 
 def qt_main():
