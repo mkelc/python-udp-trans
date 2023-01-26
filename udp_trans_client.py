@@ -18,14 +18,12 @@ logger = logging.getLogger(__name__)
 class DatagramThread(QObject):
 
     sig_cleanup = pyqtSignal()
-    sig_finished = pyqtSignal()
 
     def __init__(self):
         super().__init__(None)
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.thread = QThread()
         self.moveToThread(self.thread)
-        self.sig_finished.connect(self.thread.quit)
         self.sig_cleanup.connect(self.cleanup)
         self.thread.start()
 
@@ -43,12 +41,9 @@ class DatagramThread(QObject):
         print("Cleanin up dgram sender")
         self.socket.close()
         self.socket = None
-        self.sig_finished.emit()
 
 
 class MainWindow(QMainWindow):
-
-    sig_cleanup = pyqtSignal()
 
     def __init__(self, app: QApplication):
         super().__init__()
